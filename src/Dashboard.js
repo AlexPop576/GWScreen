@@ -1,82 +1,213 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import './Dashboard.css';
 
-const data = [
-  { label: 'Humidity', value: 60, unit: '%', recommended: 65, details: 'Humidity is at an optimal level for most crops.' },
-  { label: 'Temperature', value: 22, unit: '°C', recommended: 24, details: 'Temperature is within the ideal range for tomatoes.' },
-  { label: 'Nitrogen', value: 35, unit: 'ppm', recommended: 40, details: 'Nitrogen level is sufficient for growth.' },
-  { label: 'Phosphorus', value: 15, unit: 'ppm', recommended: 18, details: 'Consider supplementing phosphorus slightly.' },
-  { label: 'Potassium', value: 20, unit: 'ppm', recommended: 25, details: 'Potassium level is stable and healthy.' },
-  { label: 'Luminosity', value: 750, unit: 'lx', recommended: 1000, details: 'Light levels are adequate for photosynthesis.' },
-];
+import logo from './assets/logo.png';
+import tempIcon from './assets/soilTemperature.png';
+import humidityIcon from './assets/soilHumidity.png';
+import nitrogenIcon from './assets/NitroIco.png';
+import phosphorusIcon from './assets/PhospIco.png';
+import potassiumIcon from './assets/PotasIco.png';
+
+const plantRanges = {
+  Tomato: {
+    temperature: [10.0, 30.0],
+    humidity: [50.0, 80.0],
+    nitrogen: [40.0, 60.0],
+    phosphorus: [30.0, 50.0],
+    potassium: [40.0, 70.0],
+  },
+  Cucumber: {
+    temperature: [10.0, 30.0],
+    humidity: [50.0, 80.0],
+    nitrogen: [40.0, 60.0],
+    phosphorus: [30.0, 50.0],
+    potassium: [40.0, 70.0],
+  },
+  Carrots: {
+    temperature: [10.0, 30.0],
+    humidity: [50.0, 80.0],
+    nitrogen: [40.0, 60.0],
+    phosphorus: [30.0, 50.0],
+    potassium: [40.0, 70.0],
+  },
+  Potatoes: {
+    temperature: [10.0, 30.0],
+    humidity: [50.0, 80.0],
+    nitrogen: [40.0, 60.0],
+    phosphorus: [30.0, 50.0],
+    potassium: [40.0, 70.0],
+  },
+};
+
+const icons = {
+  Temperature: tempIcon,
+  Humidity: humidityIcon,
+  Nitrogen: nitrogenIcon,
+  Phosphorus: phosphorusIcon,
+  Potassium: potassiumIcon,
+};
 
 export default function Dashboard() {
-  const [selected, setSelected] = useState(null);
+  const [sensorData, setSensorData] = useState([]);
+  const [sensorName, setSensorName] = useState('SensorName');
+  const [plantType, setPlantType] = useState('PlantType');
 
-  const getPosition = (value, recommended) => {
-    const diff = (value - recommended) / recommended;
-    return Math.max(0, Math.min(100, 50 + diff * 50));
-  };
+  const getMid = ([min, max]) => (min + max) / 2;
 
-  const getBarColor = (value, recommended) => {
-    const diff = Math.abs(value - recommended);
-    const maxDiff = recommended;
-    const percent = Math.min(diff / maxDiff, 1);
-    const r = Math.round(255 * percent);
-    const g = Math.round(200 * (1 - percent) + 55);
-    return `rgb(${r}, ${g}, 100)`;
+  useEffect(() => {
+    const fetchData = () => {
+      fetch('http://localhost:8000/sensors/gTsSy0/')
+        .then((res) => res.json())
+        .then((sensor) => {
+          const plant = sensor.plant || 'Tomato';
+          const rec = plantRanges[plant] || plantRanges['Tomato'];
+
+          setSensorName(sensor.name || 'SensorName');
+          setPlantType(sensor.plant || 'PlantType');
+
+
+          const data = [
+            {
+              label: 'Temperature',
+              value: sensor.temperature,
+              unit: '°C',
+              recommended: getMid(rec.temperature),
+            },
+            {
+              label: 'Humidity',
+              value: sensor.humidity === true || sensor.humidity === false ? sensor.humidity : null,
+              unit: '%',
+              recommended: getMid(rec.humidity),
+            },
+            {
+              label: 'Nitrogen',
+              value: sensor.nitrogen,
+              unit: 'mg/kg',
+              recommended: getMid(rec.nitrogen),
+            },
+            {
+              label: 'Phosphorus',
+              value: sensor.phosphorus,
+              unit: 'mg/kg',
+              recommended: getMid(rec.phosphorus),
+            },
+            {
+              label: 'Potassium',
+              value: sensor.potassium,
+              unit: 'mg/kg',
+              recommended: getMid(rec.potassium),
+            },
+          ];
+
+          setSensorData(data);
+        })
+        .catch((error) => {
+          console.error('Error fetching sensor data:', error);
+        });
+    };
+
+
+    fetchData();
+
+    const intervalId = setInterval(fetchData, 5000);
+
+    return () => clearInterval(intervalId); 
+  }, []);
+  
+
+  const getPosition = (label, value, recommended) => {
+    if (value === null || value === undefined) return 0;
+  
+    if (label === "Humidity") {
+      return value === true ? 50 : 10;
+    }
+  
+    const plant = plantType || 'Tomato';
+    const range = plantRanges[plant][label.toLowerCase()];
+    if (!range) return 50;
+  
+    const [min, max] = range;
+    const mid = (min + max) / 2;
+  
+    if (value < min) {
+      // Map [min-10%, min) to [10%, 40%]
+      const clamped = Math.max(min - 10, value); // assume 10 units under max deviation
+      return 15 + ((clamped - (min - 10)) / 10) * 30; // 30% span
+    }
+  
+    if (value > max) {
+      // Map (max, max+10] to [60%, 90%]
+      const clamped = Math.min(max + 10, value);
+      return 60 + ((clamped - max) / 10) * 30;
+    }
+  
+    // Value is in range → map [min, max] to [40%, 60%]
+    return 40 + ((value - min) / (max - min)) * 20;
   };
+  
+  
+  
+  
+  
+  
+  
+
+  // const getBarColor = (value, recommended) => {
+  //   const diff = Math.abs(value - recommended);
+  //   const maxDiff = recommended;
+  //   const percent = Math.min(diff / maxDiff, 1);
+  //   const r = Math.round(255 * percent);
+  //   const g = Math.round(200 * (1 - percent) + 55);
+  //   return `rgb(${r}, ${g}, 100)`;
+  // };
 
   return (
-    <div className="dashboard-container">
-      <div className="dashboard">
-        <h1 className="title">Sensor Data</h1>
-        <div className="card-grid">
-          {data.map((item, index) => (
-            <div className="card" key={index} onClick={() => setSelected(item)}>
-              <div className="label">{item.label}</div>
-              <div className="value">{item.value} {item.unit}</div>
-            </div>
-          ))}
+    <div className="dashboard-wrapper">
+      <div className="dashboard-header">
+        <div className="logo-container">
+          <img src={logo} alt="Growwise" className="logo" />
         </div>
+        <h2>{sensorName}</h2>
+        <p className="plant-type">Type: {plantType}</p>
       </div>
 
-      <div className={`side-panel ${selected ? 'show' : ''}`}>
-        {selected && (
-          <div className="sidebar-content">
-            <button className="close-btn" onClick={() => setSelected(null)}>×</button>
+      <div className="dashboard-bars">
+        {sensorData.map((item, index) => (
+          <div key={index} className="sensor-bar">
+           <div className="sensor-icon">
+  <img 
+    src={icons[item.label]} 
+    alt={item.label} 
+    className={item.label === 'Humidity' || item.label === 'Temperature'
+      ? 'resize-icon-small'
+      : item.label === 'Nitrogen' || item.label === 'Phosphorus' || item.label === 'Potassium'
+        ? 'resize-icon-large'
+        : 'default-icon'} 
+  />
+</div>
 
-            <div className="top-section">
-              <h2>{selected.label}</h2>
-              <p className="big-value">{selected.value} {selected.unit}</p>
-              <p>{selected.details}</p>
-            </div>
-
-            <div className="bottom-section">
-              <label>Recommended: {selected.recommended} {selected.unit}</label>
-              <div className="progress-bar-wrapper">
-                <div className="progress-bar-track">
-                  <div
-                    className="progress-bar-fill"
-                    style={{
-                      backgroundColor: getBarColor(selected.value, selected.recommended),
-                    }}
-                  ></div>
-
-                  <div className="marker center" title="Recommended"></div>
-                  <div
-                    className="marker"
-                    style={{
-                      left: `${getPosition(selected.value, selected.recommended)}%`,
-                    }}
-                    title="Current value"
-                  ></div>
+            <div className="sensor-info">
+            <span className="sensor-value">
+  {item.label === "Humidity"
+    ? (item.value === true ? "Optimal" : "Dry")
+    : item.value !== null && item.value !== undefined
+      ? `${item.value} ${item.unit}`
+      : `N/A ${item.unit}`}
+</span>
+              <div className="bar-track">
+                <div className="bar-gradient"></div>
+                <div className="bar-zones">
+                  <div className="zone-line" style={{ left: '40%' }}></div>
+                  <div className="zone-line" style={{ left: '60%' }}></div>
                 </div>
+                <div className="bar-indicator"
+                    style={{ left: `${getPosition(item.label, item.value, item.recommended)}%` }}
+                ></div>
+
               </div>
             </div>
-
           </div>
-        )}
+        ))}
       </div>
     </div>
   );
